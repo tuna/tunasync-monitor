@@ -2,6 +2,7 @@ use colored::*;
 use reqwest;
 use serde::Deserialize;
 use std::time::SystemTime;
+use structopt::StructOpt;
 
 #[derive(Deserialize, Debug)]
 struct TunasyncStatus {
@@ -16,7 +17,14 @@ struct TunasyncStatus {
     size: String,
 }
 
-fn main() {
+#[derive(StructOpt)]
+struct Args {
+    #[structopt(short, long, default_value = "7")]
+    expire_days: i64,
+}
+
+#[paw::main]
+fn main(args: Args) {
     for server in ["neomirrors", "nanomirrors"].iter() {
         let client = reqwest::Client::new();
         let mut res = client
@@ -37,7 +45,7 @@ fn main() {
         for entry in status {
             if entry.status == "failed" {
                 let expired = time - entry.last_update_ts;
-                if expired > 60 * 60 * 24 * 7 && entry.last_update_ts > 0 {
+                if expired > 60 * 60 * 24 * args.expire_days && entry.last_update_ts > 0 {
                     // one week
                     println!(
                         "{} {}: {}, {} days ago",
@@ -46,13 +54,13 @@ fn main() {
                         entry.name,
                         (time - entry.last_update_ts) / (60 * 60 * 24),
                     );
+                    fail = true;
                 }
-                fail = true;
             }
         }
 
         if !fail {
-            println!("{} {}: *", server.blue(), "success".red());
+            println!("{} {}: no out of sync mirrors", server.blue(), "success".green());
         }
     }
 }
