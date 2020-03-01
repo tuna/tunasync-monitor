@@ -1,4 +1,3 @@
-use chrono::NaiveDate;
 use colored::*;
 use elasticsearch::{http::transport::Transport, Elasticsearch, Error, SearchParts};
 use reqwest;
@@ -110,23 +109,9 @@ async fn main() -> Result<(), Error> {
             repo_count.insert(repo.clone());
         }
 
-        let mut parts = vec![];
-        for d in 1..(if args.month == 12 {
-            NaiveDate::from_ymd(args.year + 1, 1, 1)
-        } else {
-            NaiveDate::from_ymd(args.year, args.month + 1, 1)
-        }
-        .signed_duration_since(NaiveDate::from_ymd(args.year, args.month, 1))
-        .num_days())
-        {
-            parts.push(format!(
-                "filebeat-{:04}.{:02}.{:02}",
-                args.year, args.month, d
-            ));
-        }
-        let param: Vec<&str> = parts.iter().map(|s| s.as_str()).collect();
+        let wildcard = format!("filebeat-{:04}.{:02}.*", args.year, args.month);
         let response = client
-            .search(SearchParts::Index(&param))
+            .search(SearchParts::Index(&[&wildcard]))
             .size(repos.len() as i64)
             .body(json!({
                 "aggs": {
@@ -142,6 +127,7 @@ async fn main() -> Result<(), Error> {
                     }
                 }
             }))
+            .allow_no_indices(true)
             .send()
             .await?;
         let response_body = response.read_body::<Value>().await?;
