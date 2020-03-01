@@ -126,7 +126,7 @@ async fn main() -> Result<(), Error> {
         for item in response_body["aggregations"]["repo_count"]["buckets"].as_array().unwrap() {
             let count = item["doc_count"].as_i64().unwrap();
             let repo = item["key"].as_str().unwrap();
-            println!("{} {}: {} ", "elasticsearch".blue(), repo, count);
+            println!("{} {}: {} ", "requests to".blue(), repo, count);
         }
     }
     Ok(())
