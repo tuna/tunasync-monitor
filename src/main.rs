@@ -1,12 +1,12 @@
-use chrono::{DateTime, Duration, Local};
+use chrono::NaiveDate;
 use colored::*;
 use elasticsearch::{http::transport::Transport, Elasticsearch, Error, SearchParts};
 use reqwest;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::time::SystemTime;
 use structopt::StructOpt;
-use std::collections::HashMap;
 
 #[derive(Deserialize, Debug)]
 struct TunasyncStatus {
@@ -29,8 +29,11 @@ struct Args {
     #[structopt(short = "E", long, default_value = "http://localhost:9200")]
     elasticsearch: String,
 
-    #[structopt(short, long, default_value = "7")]
-    recent_days: i64,
+    #[structopt(short, long, default_value = "2020")]
+    year: i32,
+
+    #[structopt(short, long, default_value = "1")]
+    month: u32,
 
     #[structopt(short, long)]
     query: bool,
@@ -60,7 +63,10 @@ async fn main() -> Result<(), Error> {
         let mut fail = false;
         for entry in status {
             repos.push(entry.name.clone());
-            repo_sizes.entry(entry.name.clone()).or_insert(vec![]).push(entry.size);
+            repo_sizes
+                .entry(entry.name.clone())
+                .or_insert(vec![])
+                .push(entry.size);
             if entry.status == "failed" {
                 let expired = time - entry.last_update_ts;
                 if expired > 60 * 60 * 24 * args.expire_days && entry.last_update_ts > 0 {
@@ -99,11 +105,16 @@ async fn main() -> Result<(), Error> {
         repos.sort();
         repos.dedup();
 
-        let dt: DateTime<Local> = Local::now();
         let mut parts = vec![];
-        for i in 0..args.recent_days {
-            let date = dt - Duration::days(i);
-            parts.push(format!("filebeat-{}", date.format("%Y.%m.%d")));
+        for d in 1..(if args.month == 12 {
+            NaiveDate::from_ymd(args.year + 1, 1, 1)
+        } else {
+            NaiveDate::from_ymd(args.year, args.month + 1, 1)
+        }
+        .signed_duration_since(NaiveDate::from_ymd(args.year, args.month, 1))
+        .num_days())
+        {
+            parts.push(format!("filebeat-{:04}.{:02}.{:02}", args.year, args.month, d));
         }
         let param: Vec<&str> = parts.iter().map(|s| s.as_str()).collect();
         let response = client
@@ -126,10 +137,25 @@ async fn main() -> Result<(), Error> {
             .send()
             .await?;
         let response_body = response.read_body::<Value>().await?;
-        for item in response_body["aggregations"]["repo_count"]["buckets"].as_array().unwrap() {
+        println!(
+            "{}: showing {}.{}",
+            "elasticsearch".blue(),
+            args.year,
+            args.month,
+        );
+        for item in response_body["aggregations"]["repo_count"]["buckets"]
+            .as_array()
+            .unwrap()
+        {
             let count = item["doc_count"].as_i64().unwrap();
             let repo = item["key"].as_str().unwrap();
-            println!("{} {}: {} size={:?}", "requests to".blue(), repo, count, repo_sizes[repo]);
+            println!(
+                "{} {}: {} size={:?}",
+                "requests to".blue(),
+                repo,
+                count,
+                repo_sizes[repo]
+            );
         }
     }
     Ok(())
