@@ -6,6 +6,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::time::SystemTime;
 use structopt::StructOpt;
+use std::collections::HashMap;
 
 #[derive(Deserialize, Debug)]
 struct TunasyncStatus {
@@ -39,6 +40,7 @@ struct Args {
 async fn main() -> Result<(), Error> {
     let args = Args::from_args();
     let mut repos = vec![];
+    let mut repo_sizes: HashMap<String, Vec<String>> = HashMap::new();
     for server in ["neomirrors", "nanomirrors"].iter() {
         let client = reqwest::Client::new();
         let mut res = client
@@ -58,6 +60,7 @@ async fn main() -> Result<(), Error> {
         let mut fail = false;
         for entry in status {
             repos.push(entry.name.clone());
+            repo_sizes.entry(entry.name.clone()).or_insert(vec![]).push(entry.size);
             if entry.status == "failed" {
                 let expired = time - entry.last_update_ts;
                 if expired > 60 * 60 * 24 * args.expire_days && entry.last_update_ts > 0 {
@@ -126,7 +129,7 @@ async fn main() -> Result<(), Error> {
         for item in response_body["aggregations"]["repo_count"]["buckets"].as_array().unwrap() {
             let count = item["doc_count"].as_i64().unwrap();
             let repo = item["key"].as_str().unwrap();
-            println!("{} {}: {} ", "requests to".blue(), repo, count);
+            println!("{} {}: {} size={:?}", "requests to".blue(), repo, count, repo_sizes[repo]);
         }
     }
     Ok(())
