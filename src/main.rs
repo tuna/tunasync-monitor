@@ -29,11 +29,8 @@ struct Args {
     #[structopt(short = "E", long, default_value = "http://localhost:9200")]
     elasticsearch: String,
 
-    #[structopt(short, long, default_value = "2020")]
-    year: i32,
-
-    #[structopt(short, long, default_value = "1")]
-    month: u32,
+    #[structopt(short, long, default_value = "2020.01.*")]
+    pattern: String,
 
     #[structopt(short, long)]
     query: bool,
@@ -109,7 +106,7 @@ async fn main() -> Result<(), Error> {
             repo_count.insert(repo.clone());
         }
 
-        let wildcard = format!("filebeat-{:04}.{:02}.*", args.year, args.month);
+        let wildcard = format!("filebeat-{}", args.pattern);
         let response = client
             .search(SearchParts::Index(&[&wildcard]))
             .size(repos.len() as i64)
@@ -132,10 +129,9 @@ async fn main() -> Result<(), Error> {
             .await?;
         let response_body = response.read_body::<Value>().await?;
         println!(
-            "{}: showing {}.{}",
+            "{}: showing {}",
             "elasticsearch".blue(),
-            args.year,
-            args.month,
+            args.pattern,
         );
         for item in response_body["aggregations"]["repo_count"]["buckets"]
             .as_array()
