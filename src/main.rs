@@ -28,6 +28,9 @@ struct Args {
     #[structopt(short = "E", long, default_value = "http://localhost:9200")]
     elasticsearch: String,
 
+    #[structopt(short, long, default_value = "7")]
+    recent_days: i64,
+
     #[structopt(short, long)]
     query: bool,
 }
@@ -95,7 +98,7 @@ async fn main() -> Result<(), Error> {
 
         let dt: DateTime<Local> = Local::now();
         let mut parts = vec![];
-        for i in 0..7 {
+        for i in 0..args.recent_days {
             let date = dt - Duration::days(i);
             parts.push(format!("filebeat-{}", date.format("%Y.%m.%d")));
         }
@@ -120,7 +123,11 @@ async fn main() -> Result<(), Error> {
             .send()
             .await?;
         let response_body = response.read_body::<Value>().await?;
-        println!("{}", response_body["aggregations"]);
+        for item in response_body["aggregations"]["repo_count"]["buckets"].as_array().unwrap() {
+            let count = item["doc_count"].as_i64().unwrap();
+            let repo = item["key"].as_str().unwrap();
+            println!("{} {}: {} ", "elasticsearch".blue(), repo, count);
+        }
     }
     Ok(())
 }
