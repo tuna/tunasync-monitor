@@ -5,6 +5,7 @@ use reqwest;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::time::SystemTime;
 use structopt::StructOpt;
 
@@ -104,6 +105,10 @@ async fn main() -> Result<(), Error> {
 
         repos.sort();
         repos.dedup();
+        let mut repo_count: HashSet<String> = HashSet::new();
+        for repo in &repos {
+            repo_count.insert(repo.clone());
+        }
 
         let mut parts = vec![];
         for d in 1..(if args.month == 12 {
@@ -114,7 +119,10 @@ async fn main() -> Result<(), Error> {
         .signed_duration_since(NaiveDate::from_ymd(args.year, args.month, 1))
         .num_days())
         {
-            parts.push(format!("filebeat-{:04}.{:02}.{:02}", args.year, args.month, d));
+            parts.push(format!(
+                "filebeat-{:04}.{:02}.{:02}",
+                args.year, args.month, d
+            ));
         }
         let param: Vec<&str> = parts.iter().map(|s| s.as_str()).collect();
         let response = client
@@ -129,7 +137,7 @@ async fn main() -> Result<(), Error> {
                             "order": {
                                 "_count": "asc"
                             },
-                            "size": 20
+                            "size": repos.len()
                         }
                     }
                 }
@@ -149,12 +157,21 @@ async fn main() -> Result<(), Error> {
         {
             let count = item["doc_count"].as_i64().unwrap();
             let repo = item["key"].as_str().unwrap();
+            repo_count.remove(repo);
             println!(
                 "{} {}: {} size={:?}",
                 "requests to".blue(),
                 repo,
                 count,
                 repo_sizes[repo]
+            );
+        }
+        for repo in repo_count {
+            println!(
+                "{}: {} size={:?}",
+                "unused repo".blue(),
+                repo,
+                repo_sizes[&repo]
             );
         }
     }
