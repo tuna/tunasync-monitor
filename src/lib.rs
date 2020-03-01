@@ -29,6 +29,14 @@ pub fn get_server_status(server: &str) -> Vec<TunasyncStatus> {
     status
 }
 
+pub fn get_expire_days(ts: i64) -> i64 {
+    let time = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    (time - ts) / (60 * 60 * 24)
+}
+
 pub fn get_expired_repos(status: &Vec<TunasyncStatus>, expire_days: i64) -> Vec<(String, i64)> {
     let mut res = vec![];
     let time = SystemTime::now()
