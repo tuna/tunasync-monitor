@@ -1,6 +1,9 @@
+use chrono::{DateTime, Duration, Local};
 use colored::*;
+use elasticsearch::{http::transport::Transport, Elasticsearch, Error, SearchParts};
 use reqwest;
 use serde::Deserialize;
+use serde_json::{json, Value};
 use std::time::SystemTime;
 use structopt::StructOpt;
 
@@ -21,10 +24,18 @@ struct TunasyncStatus {
 struct Args {
     #[structopt(short, long, default_value = "7")]
     expire_days: i64,
+
+    #[structopt(short = "E", long, default_value = "http://localhost:9200")]
+    elasticsearch: String,
+
+    #[structopt(short, long)]
+    query: bool,
 }
 
-#[paw::main]
-fn main(args: Args) {
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    let args = Args::from_args();
+    let mut repos = vec![];
     for server in ["neomirrors", "nanomirrors"].iter() {
         let client = reqwest::Client::new();
         let mut res = client
@@ -43,6 +54,7 @@ fn main(args: Args) {
             .as_secs() as i64;
         let mut fail = false;
         for entry in status {
+            repos.push(entry.name.clone());
             if entry.status == "failed" {
                 let expired = time - entry.last_update_ts;
                 if expired > 60 * 60 * 24 * args.expire_days && entry.last_update_ts > 0 {
@@ -60,7 +72,55 @@ fn main(args: Args) {
         }
 
         if !fail {
-            println!("{} {}: no out of sync mirrors", server.blue(), "success".green());
+            println!(
+                "{} {}: no out of sync mirrors",
+                server.blue(),
+                "success".green()
+            );
         }
     }
+
+    if args.query {
+        let transport = Transport::single_node(&args.elasticsearch)?;
+        let client = Elasticsearch::new(transport);
+        println!(
+            "{} {}: using {}",
+            "elasticsearch".blue(),
+            "success".green(),
+            args.elasticsearch.blue()
+        );
+
+        repos.sort();
+        repos.dedup();
+
+        let dt: DateTime<Local> = Local::now();
+        let mut parts = vec![];
+        for i in 0..7 {
+            let date = dt - Duration::days(i);
+            parts.push(format!("filebeat-{}", date.format("%Y.%m.%d")));
+        }
+        let param: Vec<&str> = parts.iter().map(|s| s.as_str()).collect();
+        let response = client
+            .search(SearchParts::Index(&param))
+            .size(repos.len() as i64)
+            .body(json!({
+                "aggs": {
+                    "repo_count": {
+                        "terms": {
+                            "field": "nginx.access.first_level",
+                            "include": repos,
+                            "order": {
+                                "_count": "asc"
+                            },
+                            "size": 20
+                        }
+                    }
+                }
+            }))
+            .send()
+            .await?;
+        let response_body = response.read_body::<Value>().await?;
+        println!("{}", response_body["aggregations"]);
+    }
+    Ok(())
 }
