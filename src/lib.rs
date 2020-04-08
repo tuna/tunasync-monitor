@@ -18,7 +18,7 @@ pub fn get_server_status(server: &str) -> Vec<TunasyncStatus> {
     let client = reqwest::Client::new();
     let mut res = client
         .get(&format!(
-            "https://{}.tuna.tsinghua.edu.cn/static/tunasync.json",
+            "https://{}/static/tunasync.json",
             server
         ))
         .header(reqwest::header::USER_AGENT, "tunasync-monitor")
