@@ -10,6 +10,8 @@ pub struct TunasyncStatus {
     pub last_update_ts: i64,
     pub last_ended: String,
     pub last_ended_ts: i64,
+    pub next_schedule: String,
+    pub next_schedule_ts: i64,
     pub upstream: String,
     pub size: String,
 }
