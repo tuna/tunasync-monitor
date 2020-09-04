@@ -26,8 +26,15 @@ async fn main() -> Result<(), Error> {
     let args = Args::from_args();
     let mut repos = vec![];
     let mut repo_sizes: HashMap<String, Vec<String>> = HashMap::new();
-    for server in ["neomirrors.tuna.tsinghua.edu.cn", "nanomirrors.tuna.tsinghua.edu.cn"].iter() {
-        let status = get_server_status(server);
+    for server in [
+        "neomirrors.tuna.tsinghua.edu.cn",
+        "nanomirrors.tuna.tsinghua.edu.cn",
+    ]
+    .iter()
+    {
+        let status = get_server_status(server)
+            .await
+            .expect("Get server status should not fail");
         let mut fail = false;
         let expired_repos = get_expired_repos(&status, args.expire_days);
         for entry in status {

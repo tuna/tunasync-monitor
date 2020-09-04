@@ -16,19 +16,18 @@ pub struct TunasyncStatus {
     pub size: String,
 }
 
-pub fn get_server_status(server: &str) -> Vec<TunasyncStatus> {
+pub async fn get_server_status(server: &str) -> reqwest::Result<Vec<TunasyncStatus>> {
     let client = reqwest::Client::new();
-    let mut res = client
+    let res = client
         .get(&format!(
             "https://{}/static/tunasync.json",
             server
         ))
         .header(reqwest::header::USER_AGENT, "tunasync-monitor")
-        .send()
-        .unwrap();
-    let mut status: Vec<TunasyncStatus> = res.json().unwrap();
+        .send().await?;
+    let mut status: Vec<TunasyncStatus> = res.json().await?;
     status.sort_by_key(|status| -status.last_update_ts);
-    status
+    Ok(status)
 }
 
 pub fn get_expire_days(ts: i64) -> i64 {
