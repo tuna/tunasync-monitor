@@ -102,7 +102,7 @@ async fn main() -> Result<(), Error> {
             .allow_no_indices(true)
             .send()
             .await?;
-        let response_body = response.read_body::<Value>().await?;
+        let response_body = response.json::<Value>().await?;
         println!("{}: showing {}", "elasticsearch".blue(), args.pattern,);
         for item in response_body["aggregations"]["repo_count"]["buckets"]
             .as_array()
