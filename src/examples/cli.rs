@@ -3,27 +3,27 @@ use elasticsearch::{http::transport::Transport, Elasticsearch, Error, SearchPart
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use structopt::StructOpt;
+use clap::Parser;
 use tunasync_monitor::*;
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Args {
-    #[structopt(short, long, default_value = "7")]
+    #[arg(short, long, default_value = "7")]
     expire_days: i64,
 
-    #[structopt(short = "E", long, default_value = "http://localhost:9200")]
+    #[arg(short = 'E', long, default_value = "http://localhost:9200")]
     elasticsearch: String,
 
-    #[structopt(short, long, default_value = "2020.01.*")]
+    #[arg(short, long, default_value = "2020.01.*")]
     pattern: String,
 
-    #[structopt(short, long)]
+    #[arg(short, long)]
     query: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let args = Args::from_args();
+    let args = Args::parse();
     let mut repos = vec![];
     let mut repo_sizes: HashMap<String, Vec<String>> = HashMap::new();
     for server in [
